@@ -7,7 +7,7 @@ An AI assistant based on React 19 + Flask + HuggingFace API, supporting multiple
 ## Project Structure
 
 ```
-ai/
+ai-assistant/
 ├── frontend/          # React frontend project
 │   ├── src/          # React source code
 │   ├── package.json  # Frontend dependencies

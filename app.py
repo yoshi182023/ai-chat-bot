@@ -15,7 +15,10 @@ PROMPT_TEMPLATES = {
 }
 
 app = Flask(__name__)
-CORS(app)  # 启用 CORS
+CORS(app, 
+     origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+     methods=["GET", "POST", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization"])  # 启用 CORS
 
 # 存储对话历史
 conversation_history = []
