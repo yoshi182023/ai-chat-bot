@@ -17,8 +17,9 @@ PROMPT_TEMPLATES = {
 }
 
 app = Flask(__name__)
+# 为生产环境配置 CORS
 CORS(app, 
-     origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+     origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "https://*.vercel.app"],
      methods=["GET", "POST", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization"])  # 启用 CORS
 
@@ -44,15 +45,15 @@ client = InferenceClient(
     api_key=HF_API_KEY,
 )
 
-@app.route('/')
-def serve_index():
-    return send_from_directory('frontend', 'index.html')
+@app.route('/api/')
+def api_index():
+    return jsonify({"message": "AI Assistant API is running"})
 
-@app.route('/<path:path>')
-def serve_static(path):
-    return send_from_directory('frontend', path)
+@app.route('/api/<path:path>')
+def api_static(path):
+    return jsonify({"error": "API endpoint not found"}), 404
 
-@app.route("/chat", methods=["POST"])
+@app.route("/api/chat", methods=["POST"])
 def chat():
     # 清理过期会话
     cleanup_expired_sessions()
@@ -110,7 +111,7 @@ def chat():
     except Exception as e:
         return jsonify({"reply": f"出错了: {e}", "session_id": session_id})
 
-@app.route("/session/<session_id>/history", methods=["GET"])
+@app.route("/api/session/<session_id>/history", methods=["GET"])
 def get_session_history(session_id):
     """获取指定会话的历史记录"""
     if session_id not in conversation_sessions:
