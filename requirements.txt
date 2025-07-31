@@ -1,3 +1,5 @@
 flask
 huggingface_hub
 python-dotenv
+markdown
+markupsafe
