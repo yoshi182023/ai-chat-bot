@@ -50,7 +50,10 @@ ai-assistant/
 
    ```bash
    # 终端 1：启动后端服务（在项目根目录）
+   source .venv/bin/activate
    python app.py
+
+   /Users/gaoshaoyun/Documents/workspace/ai-assistant/.venv/bin/python app.py
 
    # 终端 2：启动前端服务（在 frontend 目录）
    cd frontend

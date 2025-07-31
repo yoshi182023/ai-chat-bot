@@ -7,22 +7,43 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  color: #666;
+  font-size: 14px;
+  margin-top: -10px;
+}
+
 .toolbar {
   margin: 20px 0;
   padding: 15px;
   background-color: #f8f9fa;
   border-radius: 8px;
   display: flex;
-  gap: 10px;
+  gap: 15px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #333;
 }
 
 .select {
-  padding: 8px;
+  padding: 8px 12px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: white;
-  min-width: 120px;
+  min-width: 140px;
+  font-size: 14px;
 }
 
 .messages {
@@ -86,6 +107,21 @@
 .button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
+}
+
+.buttonGroup {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.sessionInfo {
+  font-size: 12px;
+  color: #666;
+  background-color: #f0f0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .loading {

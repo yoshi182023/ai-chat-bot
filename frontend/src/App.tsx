@@ -1,9 +1,18 @@
-import { useState, useRef, useEffect, useCallback, useTransition } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useOptimistic,
+  Suspense,
+} from "react";
 import styles from "./App.module.css";
 
 interface Message {
   type: "user" | "ai";
   content: string;
+  id?: string;
+  timestamp?: number;
 }
 
 interface ChatParams {
@@ -14,14 +23,75 @@ interface ChatParams {
   session_id?: string;
 }
 
+// 模拟 Server Action 的 API 调用
+async function sendChatAction(
+  params: ChatParams
+): Promise<{ reply: string; session_id: string }> {
+  const response = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+// Session history loader
+async function loadSessionHistoryAction(sessionId: string): Promise<Message[]> {
+  const response = await fetch(`/api/session/${sessionId}/history`);
+  if (!response.ok) {
+    throw new Error("Failed to load session history");
+  }
+  const data = await response.json();
+  return data.history || [];
+}
+
+// Loading component
+function LoadingSpinner() {
+  return (
+    <div className={`${styles.message} ${styles.aiMessage} ${styles.loading}`}>
+      🤖 AI is thinking...
+    </div>
+  );
+}
+
+// Message component with React 19 optimizations
+function ChatMessage({ message, index }: { message: Message; index: number }) {
+  return (
+    <div
+      key={message.id || index}
+      className={`${styles.message} ${
+        message.type === "user" ? styles.userMessage : styles.aiMessage
+      }`}
+      dangerouslySetInnerHTML={{
+        __html:
+          message.type === "user"
+            ? "You: " + message.content
+            : "AI: " + message.content,
+      }}
+    />
+  );
+}
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [optimisticMessages, addOptimisticMessage] = useOptimistic(
+    messages,
+    (currentMessages: Message[], newMessage: Message) => [
+      ...currentMessages,
+      newMessage,
+    ]
+  );
+
   const [inputText, setInputText] = useState("");
   const [selectedTool, setSelectedTool] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Chinese");
   const [codeLanguage, setCodeLanguage] = useState("Python");
   const [isLoading, setIsLoading] = useState(false);
-  const [isPending, startTransition] = useTransition();
   const [sessionId, setSessionId] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -30,72 +100,75 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  // 使用 React 19 的并发特性
   useEffect(() => {
-    if (!isPending) {
-      startTransition(() => {
-        scrollToBottom();
-      });
-    }
-  }, [messages, isPending, scrollToBottom]);
+    const timeoutId = setTimeout(() => {
+      scrollToBottom();
+    }, 0);
 
-  // 加载会话历史
-  const loadSessionHistory = useCallback(async (sessionId: string) => {
-    try {
-      const response = await fetch(`/api/session/${sessionId}/history`);
-      const data = await response.json();
-      if (data.history) {
-        setMessages(data.history);
+    return () => clearTimeout(timeoutId);
+  }, [optimisticMessages, scrollToBottom]);
+
+  // Session restoration with error handling
+  useEffect(() => {
+    async function restoreSession() {
+      const savedSessionId = localStorage.getItem("chatSessionId");
+      if (savedSessionId) {
+        setSessionId(savedSessionId);
+        try {
+          const history = await loadSessionHistoryAction(savedSessionId);
+          setMessages(history);
+        } catch (error) {
+          console.error("Failed to restore session:", error);
+          localStorage.removeItem("chatSessionId");
+        }
       }
-    } catch (error) {
-      console.error("Failed to load session history:", error);
     }
+
+    restoreSession();
   }, []);
 
-  // 在组件挂载时，尝试从localStorage恢复会话ID
-  useEffect(() => {
-    const savedSessionId = localStorage.getItem("chatSessionId");
-    if (savedSessionId) {
-      setSessionId(savedSessionId);
-      loadSessionHistory(savedSessionId);
-    }
-  }, [loadSessionHistory]);
-
-  // 当会话ID变化时，保存到localStorage
+  // Auto-save session ID
   useEffect(() => {
     if (sessionId) {
       localStorage.setItem("chatSessionId", sessionId);
     }
   }, [sessionId]);
 
-  // 新建会话
-  const startNewSession = () => {
+  // Enhanced new session function
+  const startNewSession = useCallback(() => {
     setSessionId("");
     setMessages([]);
     localStorage.removeItem("chatSessionId");
-  };
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault();
       sendMessage();
     }
   };
 
-  const sendMessage = async () => {
-    if (!inputText) return;
+  // Enhanced message sending with optimistic updates
+  const sendMessage = useCallback(async () => {
+    if (!inputText.trim()) return;
+
+    const userMessage: Message = {
+      type: "user",
+      content: inputText.trim(),
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+    };
+
+    // Optimistic update
+    addOptimisticMessage(userMessage);
 
     setIsLoading(true);
-
-    // 添加用户消息
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "user",
-        content: inputText,
-      },
-    ]);
+    const currentInput = inputText.trim();
+    setInputText("");
 
     const params: ChatParams = {
-      message: inputText,
+      message: currentInput,
       tool: selectedTool,
       session_id: sessionId,
     };
@@ -107,141 +180,158 @@ function App() {
     }
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
+      const data = await sendChatAction(params);
 
-      const data = await response.json();
-
-      // 保存会话ID（如果是新会话）
+      // Update session ID if new session
       if (data.session_id && data.session_id !== sessionId) {
         setSessionId(data.session_id);
       }
 
-      startTransition(() => {
-        // 添加 AI 回复
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "ai",
-            content: data.reply,
-          },
-        ]);
+      const aiMessage: Message = {
+        type: "ai",
+        content: data.reply,
+        id: (Date.now() + 1).toString(),
+        timestamp: Date.now(),
+      };
 
-        // 清空输入
-        setInputText("");
-        setIsLoading(false);
-      });
+      // Update actual state
+      setMessages((prev) => [...prev, userMessage, aiMessage]);
     } catch (error) {
       console.error("Error:", error);
-      startTransition(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "ai",
-            content: `出错了: ${
-              error instanceof Error ? error.message : "未知错误"
-            }`,
-          },
-        ]);
-        setIsLoading(false);
-      });
+      const errorMessage: Message = {
+        type: "ai",
+        content: `出错了: ${
+          error instanceof Error ? error.message : "未知错误"
+        }`,
+        id: (Date.now() + 1).toString(),
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, userMessage, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [
+    inputText,
+    selectedTool,
+    sessionId,
+    targetLanguage,
+    codeLanguage,
+    addOptimisticMessage,
+  ]);
+
+  // React 19 form handling with actions
+  const handleSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      await sendMessage();
+    },
+    [sendMessage]
+  );
 
   return (
     <div className={styles.container}>
-      <h2>AI Assistant</h2>
+      <header>
+        <h2>🤖 AI Assistant</h2>
+        <p className={styles.subtitle}>Powered by React 19 & HuggingFace</p>
+      </header>
 
       <div className={styles.toolbar}>
         <button
           onClick={startNewSession}
           className={styles.button}
           style={{ marginRight: "10px" }}
+          type="button"
         >
           🗨️ New Chat
         </button>
-        Tools:
-        <select
-          value={selectedTool}
-          onChange={(e) => setSelectedTool(e.target.value)}
-          className={styles.select}
-        >
-          <option value="">General Chat</option>
-          <option value="summarize">Text Summary</option>
-          <option value="translate">Translation</option>
-          <option value="code">Code Generation</option>
-          <option value="explain">Explanation</option>
-        </select>
+
+        <label className={styles.label}>
+          Tools:
+          <select
+            value={selectedTool}
+            onChange={(e) => setSelectedTool(e.target.value)}
+            className={styles.select}
+          >
+            <option value="">💬 General Chat</option>
+            <option value="summarize">📄 Text Summary</option>
+            <option value="translate">🌍 Translation</option>
+            <option value="code">💻 Code Generation</option>
+            <option value="explain">💡 Explanation</option>
+          </select>
+        </label>
+
         {selectedTool === "translate" && (
-          <select
-            value={targetLanguage}
-            onChange={(e) => setTargetLanguage(e.target.value)}
-            className={styles.select}
-          >
-            <option value="Chinese">Chinese</option>
-            <option value="English">English</option>
-            <option value="Japanese">Japanese</option>
-          </select>
+          <label className={styles.label}>
+            Target Language:
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+              className={styles.select}
+            >
+              <option value="Chinese">🇨🇳 Chinese</option>
+              <option value="English">🇺🇸 English</option>
+              <option value="Japanese">🇯🇵 Japanese</option>
+            </select>
+          </label>
         )}
+
         {selectedTool === "code" && (
-          <select
-            value={codeLanguage}
-            onChange={(e) => setCodeLanguage(e.target.value)}
-            className={styles.select}
-          >
-            <option value="Python">Python</option>
-            <option value="JavaScript">JavaScript</option>
-            <option value="Java">Java</option>
-          </select>
+          <label className={styles.label}>
+            Language:
+            <select
+              value={codeLanguage}
+              onChange={(e) => setCodeLanguage(e.target.value)}
+              className={styles.select}
+            >
+              <option value="Python">🐍 Python</option>
+              <option value="JavaScript">⚡ JavaScript</option>
+              <option value="Java">☕ Java</option>
+            </select>
+          </label>
         )}
       </div>
 
       <div className={`${styles.messages} markdown-body`}>
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`${styles.message} ${
-              msg.type === "user" ? styles.userMessage : styles.aiMessage
-            }`}
-            dangerouslySetInnerHTML={{
-              __html:
-                msg.type === "user"
-                  ? "You: " + msg.content
-                  : "AI: " + msg.content,
-            }}
-          />
-        ))}
-        {isLoading && (
-          <div
-            className={`${styles.message} ${styles.aiMessage} ${styles.loading}`}
-          >
-            AI is thinking...
-          </div>
-        )}
+        <Suspense fallback={<LoadingSpinner />}>
+          {optimisticMessages.map((msg, index) => (
+            <ChatMessage key={msg.id || index} message={msg} index={index} />
+          ))}
+        </Suspense>
+
+        {isLoading && <LoadingSpinner />}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className={styles.inputArea}>
+      <form onSubmit={handleSubmit} className={styles.inputArea}>
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyPress}
-          placeholder="Enter your message... (Ctrl + Enter to send)"
+          placeholder="💭 Enter your message... (Ctrl + Enter to send)"
           className={styles.textarea}
           disabled={isLoading}
+          rows={3}
+          aria-label="Chat message input"
         />
-        <br />
-        <button
-          onClick={sendMessage}
-          className={styles.button}
-          disabled={isLoading}
-        >
-          {isLoading ? "Thinking..." : "Send"}
-        </button>
-      </div>
+
+        <div className={styles.buttonGroup}>
+          <button
+            type="submit"
+            className={styles.button}
+            disabled={isLoading || !inputText.trim()}
+            aria-label="Send message"
+          >
+            {isLoading ? "🤔 Thinking..." : "🚀 Send"}
+          </button>
+
+          {sessionId && (
+            <span className={styles.sessionInfo}>
+              Session: {sessionId.slice(0, 8)}...
+            </span>
+          )}
+        </div>
+      </form>
     </div>
   );
 }
