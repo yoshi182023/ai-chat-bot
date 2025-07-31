@@ -5,6 +5,8 @@ from huggingface_hub import InferenceClient
 import os
 from dotenv import load_dotenv
 import markdown
+import uuid
+from datetime import datetime, timedelta
 
 # Predefined prompt templates
 PROMPT_TEMPLATES = {
@@ -20,8 +22,19 @@ CORS(app,
      methods=["GET", "POST", "OPTIONS"],
      allow_headers=["Content-Type", "Authorization"])  # 启用 CORS
 
-# 存储对话历史
-conversation_history = []
+# 存储多个会话的对话历史 - 使用字典按会话ID管理
+conversation_sessions = {}
+
+# 清理过期会话（超过1小时的会话）
+def cleanup_expired_sessions():
+    current_time = datetime.now()
+    expired_sessions = []
+    for session_id, session_data in conversation_sessions.items():
+        if current_time - session_data['last_activity'] > timedelta(hours=1):
+            expired_sessions.append(session_id)
+    
+    for session_id in expired_sessions:
+        del conversation_sessions[session_id]
 
 # 自动加载 .env 文件
 load_dotenv()
@@ -41,12 +54,31 @@ def serve_static(path):
 
 @app.route("/chat", methods=["POST"])
 def chat():
+    # 清理过期会话
+    cleanup_expired_sessions()
+    
     data = request.json
     user_msg = data.get("message", "")
     tool = data.get("tool", "")
+    session_id = data.get("session_id", "")
+    
+    # 如果没有提供会话ID，创建新的会话
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
+    # 初始化会话（如果不存在）
+    if session_id not in conversation_sessions:
+        conversation_sessions[session_id] = {
+            'history': [],
+            'last_activity': datetime.now()
+        }
+    
+    # 更新会话活动时间
+    conversation_sessions[session_id]['last_activity'] = datetime.now()
+    conversation_history = conversation_sessions[session_id]['history']
     
     if not user_msg:
-        return jsonify({"reply": "Please enter a message."})
+        return jsonify({"reply": "Please enter a message.", "session_id": session_id})
         
     try:
         # Build prompt
@@ -74,9 +106,26 @@ def chat():
         conversation_history.append({"role": "user", "content": user_msg})
         conversation_history.append({"role": "assistant", "content": reply})
         
-        return jsonify({"reply": reply_html})
+        return jsonify({"reply": reply_html, "session_id": session_id})
     except Exception as e:
-        return jsonify({"reply": f"出错了: {e}"})
+        return jsonify({"reply": f"出错了: {e}", "session_id": session_id})
+
+@app.route("/session/<session_id>/history", methods=["GET"])
+def get_session_history(session_id):
+    """获取指定会话的历史记录"""
+    if session_id not in conversation_sessions:
+        return jsonify({"history": [], "session_id": session_id})
+    
+    history = conversation_sessions[session_id]['history']
+    # 转换为前端需要的格式
+    messages = []
+    for msg in history:
+        if msg['role'] == 'user':
+            messages.append({"type": "user", "content": msg['content']})
+        elif msg['role'] == 'assistant':
+            messages.append({"type": "ai", "content": msg['content']})
+    
+    return jsonify({"history": messages, "session_id": session_id})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

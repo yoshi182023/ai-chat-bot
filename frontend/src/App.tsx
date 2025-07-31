@@ -11,6 +11,7 @@ interface ChatParams {
   tool: string;
   target_language?: string;
   language?: string;
+  session_id?: string;
 }
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
   const [codeLanguage, setCodeLanguage] = useState("Python");
   const [isLoading, setIsLoading] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [sessionId, setSessionId] = useState<string>("");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +37,42 @@ function App() {
       });
     }
   }, [messages, isPending, scrollToBottom]);
+
+  // 加载会话历史
+  const loadSessionHistory = useCallback(async (sessionId: string) => {
+    try {
+      const response = await fetch(`/api/session/${sessionId}/history`);
+      const data = await response.json();
+      if (data.history) {
+        setMessages(data.history);
+      }
+    } catch (error) {
+      console.error("Failed to load session history:", error);
+    }
+  }, []);
+
+  // 在组件挂载时，尝试从localStorage恢复会话ID
+  useEffect(() => {
+    const savedSessionId = localStorage.getItem("chatSessionId");
+    if (savedSessionId) {
+      setSessionId(savedSessionId);
+      loadSessionHistory(savedSessionId);
+    }
+  }, [loadSessionHistory]);
+
+  // 当会话ID变化时，保存到localStorage
+  useEffect(() => {
+    if (sessionId) {
+      localStorage.setItem("chatSessionId", sessionId);
+    }
+  }, [sessionId]);
+
+  // 新建会话
+  const startNewSession = () => {
+    setSessionId("");
+    setMessages([]);
+    localStorage.removeItem("chatSessionId");
+  };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey && e.key === "Enter") {
@@ -59,6 +97,7 @@ function App() {
     const params: ChatParams = {
       message: inputText,
       tool: selectedTool,
+      session_id: sessionId,
     };
 
     if (selectedTool === "translate") {
@@ -75,6 +114,11 @@ function App() {
       });
 
       const data = await response.json();
+
+      // 保存会话ID（如果是新会话）
+      if (data.session_id && data.session_id !== sessionId) {
+        setSessionId(data.session_id);
+      }
 
       startTransition(() => {
         // 添加 AI 回复
@@ -112,6 +156,13 @@ function App() {
       <h2>AI Assistant</h2>
 
       <div className={styles.toolbar}>
+        <button
+          onClick={startNewSession}
+          className={styles.button}
+          style={{ marginRight: "10px" }}
+        >
+          🗨️ New Chat
+        </button>
         Tools:
         <select
           value={selectedTool}
