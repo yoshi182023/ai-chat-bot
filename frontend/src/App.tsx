@@ -7,75 +7,11 @@ import {
   Suspense,
 } from "react";
 import styles from "./App.module.css";
-
-interface Message {
-  type: "user" | "ai";
-  content: string;
-  id?: string;
-  timestamp?: number;
-}
-
-interface ChatParams {
-  message: string;
-  tool: string;
-  target_language?: string;
-  language?: string;
-  session_id?: string;
-}
-
-// 模拟 Server Action 的 API 调用
-async function sendChatAction(
-  params: ChatParams
-): Promise<{ reply: string; session_id: string }> {
-  const response = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-// Session history loader
-async function loadSessionHistoryAction(sessionId: string): Promise<Message[]> {
-  const response = await fetch(`/api/session/${sessionId}/history`);
-  if (!response.ok) {
-    throw new Error("Failed to load session history");
-  }
-  const data = await response.json();
-  return data.history || [];
-}
-
-// Loading component
-function LoadingSpinner() {
-  return (
-    <div className={`${styles.message} ${styles.aiMessage} ${styles.loading}`}>
-      🤖 AI is thinking...
-    </div>
-  );
-}
-
-// Message component with React 19 optimizations
-function ChatMessage({ message, index }: { message: Message; index: number }) {
-  return (
-    <div
-      key={message.id || index}
-      className={`${styles.message} ${
-        message.type === "user" ? styles.userMessage : styles.aiMessage
-      }`}
-      dangerouslySetInnerHTML={{
-        __html:
-          message.type === "user"
-            ? "You: " + message.content
-            : "AI: " + message.content,
-      }}
-    />
-  );
-}
+import LoadingSpinner from "./components/LoadingSpinner";
+import type { Message } from "./components/ChatMessage";
+import ChatMessage from "./components/ChatMessage";
+import { loadSessionHistoryAction } from "./service/loadSessionHistoryAction";
+import { sendChatAction, type ChatParams } from "./service/sendChatAction";
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
