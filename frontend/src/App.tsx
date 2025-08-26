@@ -1,11 +1,4 @@
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useOptimistic,
-  Suspense,
-} from "react";
+import { useState, useRef, useEffect, useOptimistic, Suspense } from "react";
 import styles from "./App.module.css";
 import LoadingSpinner from "./components/LoadingSpinner";
 import type { Message } from "./components/ChatMessage";
