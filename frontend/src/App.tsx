@@ -86,7 +86,7 @@ function App() {
   };
 
   // Enhanced message sending with optimistic updates
-  const sendMessage = useCallback(async () => {
+  async function sendMessage() {
     if (!inputText.trim()) return;
 
     const userMessage: Message = {
@@ -147,23 +147,13 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    inputText,
-    selectedTool,
-    sessionId,
-    targetLanguage,
-    codeLanguage,
-    addOptimisticMessage,
-  ]);
+  }
 
   // React 19 form handling with actions
-  const handleSubmit = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      await sendMessage();
-    },
-    [sendMessage]
-  );
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await sendMessage();
+  }
 
   return (
     <div className={styles.container}>
