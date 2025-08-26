@@ -32,9 +32,9 @@ function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = useCallback(() => {
+  function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }
 
   // 使用 React 19 的并发特性
   useEffect(() => {
@@ -43,7 +43,7 @@ function App() {
     }, 0);
 
     return () => clearTimeout(timeoutId);
-  }, [optimisticMessages, scrollToBottom]);
+  }, [optimisticMessages]);
 
   // Session restoration with error handling
   useEffect(() => {
@@ -72,11 +72,11 @@ function App() {
   }, [sessionId]);
 
   // Enhanced new session function
-  const startNewSession = useCallback(() => {
+  function startNewSession() {
     setSessionId("");
     setMessages([]);
     localStorage.removeItem("chatSessionId");
-  }, []);
+  }
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey && e.key === "Enter") {
