@@ -19,7 +19,6 @@ function App() {
   const [inputText, setInputText] = useState("");
   const [selectedTool, setSelectedTool] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Chinese");
-  const [codeLanguage, setCodeLanguage] = useState("Python");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>("");
 
@@ -104,8 +103,6 @@ function App() {
 
     if (selectedTool === "translate") {
       params.target_language = targetLanguage;
-    } else if (selectedTool === "code") {
-      params.language = codeLanguage;
     }
 
     try {
@@ -151,8 +148,8 @@ function App() {
   return (
     <div className={styles.container}>
       <header>
-        <h2>🤖 AI Assistant</h2>
-        <p className={styles.subtitle}>Powered by React 19 & HuggingFace</p>
+        <h2>💕 短信聊天助手</h2>
+        <p className={styles.subtitle}>让你的聊天更有趣</p>
       </header>
 
       <div className={styles.toolbar}>
@@ -162,27 +159,27 @@ function App() {
           style={{ marginRight: "10px" }}
           type="button"
         >
-          🗨️ New Chat
+          💬 新对话
         </button>
 
         <label className={styles.label}>
-          Tools:
+          回复风格:
           <select
             value={selectedTool}
             onChange={(e) => setSelectedTool(e.target.value)}
             className={styles.select}
           >
-            <option value="">💬 General Chat</option>
-            <option value="summarize">📄 Text Summary</option>
-            <option value="translate">🌍 Translation</option>
-            <option value="code">💻 Code Generation</option>
-            <option value="explain">💡 Explanation</option>
+            <option value="">💬 普通聊天</option>
+            <option value="flirt">💋 调情回复</option>
+            <option value="translate">🌍 翻译回复</option>
+            <option value="funny">😄 幽默回复</option>
+            <option value="explain">💭 解释说明</option>
           </select>
         </label>
 
         {selectedTool === "translate" && (
           <label className={styles.label}>
-            Target Language:
+            目标语言:
             <select
               value={targetLanguage}
               onChange={(e) => setTargetLanguage(e.target.value)}
@@ -195,20 +192,6 @@ function App() {
           </label>
         )}
 
-        {selectedTool === "code" && (
-          <label className={styles.label}>
-            Language:
-            <select
-              value={codeLanguage}
-              onChange={(e) => setCodeLanguage(e.target.value)}
-              className={styles.select}
-            >
-              <option value="Python">🐍 Python</option>
-              <option value="JavaScript">⚡ JavaScript</option>
-              <option value="Java">☕ Java</option>
-            </select>
-          </label>
-        )}
       </div>
 
       <div className={`${styles.messages} markdown-body`}>
@@ -227,7 +210,7 @@ function App() {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyPress}
-          placeholder="💭 Enter your message... (Ctrl + Enter to send)"
+          placeholder="💭 输入对方说的话，我来帮你回复... (Ctrl + Enter 发送)"
           className={styles.textarea}
           disabled={isLoading}
           rows={3}
@@ -241,7 +224,7 @@ function App() {
             disabled={isLoading || !inputText.trim()}
             aria-label="Send message"
           >
-            {isLoading ? "🤔 Thinking..." : "🚀 Send"}
+            {isLoading ? "🤔 思考中..." : "💕 帮我回复"}
           </button>
 
           {sessionId && (

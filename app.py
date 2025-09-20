@@ -10,10 +10,10 @@ from datetime import datetime, timedelta
 
 # Predefined prompt templates
 PROMPT_TEMPLATES = {
-    "summarize": "Please summarize the following content:\n{input}",
-    "translate": "Please translate the following content to {target_language}:\n{input}",
-    "code": "Please generate {language} code to implement the following functionality:\n{input}",
-    "explain": "Please explain in simple terms:\n{input}"
+    "flirt": "Reply using less than 100 words, respond to my potential lover flirtatiously to: {input}",
+    "translate": "请帮我把以下内容翻译成{target_language}，要自然流畅：\n{input}",
+    "funny": "请帮我用搞笑幽默的方式回复对方，让对话更有趣。对方说：{input}",
+    "explain": "请帮我用简单易懂的方式解释：\n{input}"
 }
 
 app = Flask(__name__)
@@ -83,14 +83,18 @@ def chat():
         
     try:
         # Build prompt
-        prompt = PROMPT_TEMPLATES.get(tool, "{input}").format(
-            target_language=data.get("target_language", "Chinese"),
-            language=data.get("language", "Python"),
-            input=user_msg
-        ) if tool else user_msg
+        if tool:
+            prompt = PROMPT_TEMPLATES.get(tool, "{input}").format(
+                target_language=data.get("target_language", "Chinese"),
+                language=data.get("language", "Python"),
+                input=user_msg
+            )
+        else:
+            # 普通聊天模式：帮助用户回复对方
+            prompt = f"请帮我回复对方，让对话更有趣。对方说：{user_msg}"
             
         # 添加对话历史上下文
-        messages = [{"role": "system", "content": "你是一个有用的 AI 助手。"}]
+        messages = [{"role": "system", "content": "你是一个专业的调情助手。请直接生成用户可以直接发送给对方的内容，不要解释你的回复过程，不要重复指令内容。只输出回复内容本身。"}]
         for msg in conversation_history[-5:]:  # 保留最近5轮对话
             messages.append(msg)
         messages.append({"role": "user", "content": prompt})
